@@ -1,0 +1,99 @@
+PRAGMA foreign_keys = ON;
+
+-- Query 1: Create MusicVideo table that extends Track (generalization relationship)
+CREATE TABLE MusicVideo (
+    TrackId INTEGER PRIMARY KEY,
+    VideoDirector TEXT NOT NULL,
+    FOREIGN KEY (TrackId) REFERENCES tracks(TrackId)
+        ON DELETE CASCADE
+);
+
+-- Query 2: Insert 10 music videos into the MusicVideo table
+SELECT TrackId, Name
+FROM tracks
+LIMIT 15;
+INSERT INTO MusicVideo (TrackId, VideoDirector) VALUES
+(1, 'Spike Lee'),
+(2, 'Sofia Coppola'),
+(3, 'Christopher Nolan'),
+(4, 'Greta Gerwig'),
+(5, 'Martin Scorsese'),
+(6, 'Bong Joon Ho'),
+(7, 'Quentin Tarantino'),
+(8, 'James Cameron'),
+(9, 'Denis Villeneuve'),
+(10, 'Chloe Zhao');
+
+-- Query 3: Insert a video for "Voodoo" by looking up the TrackId by name
+SELECT TrackId, Name
+FROM tracks
+WHERE Name = 'Voodoo';
+INSERT INTO MusicVideo (TrackId, VideoDirector)
+SELECT TrackId, 'David Fincher'
+FROM tracks t
+WHERE t.Name = 'Voodoo'
+  AND t.TrackId NOT IN (SELECT TrackId FROM MusicVideo);
+SELECT * FROM MusicVideo
+WHERE TrackId IN (
+    SELECT TrackId FROM tracks WHERE Name = 'Voodoo'
+);
+
+-- Query 4: Find all tracks with accented vowels in the name
+SELECT TrackId, Name
+FROM tracks
+WHERE Name LIKE '%á%'
+   OR Name LIKE '%é%'
+   OR Name LIKE '%í%'
+   OR Name LIKE '%ó%'
+   OR Name LIKE '%ú%';
+
+-- Query 5: JOIN query - show track names with their video directors
+SELECT t.Name AS TrackName,
+       mv.VideoDirector
+FROM MusicVideo mv
+JOIN tracks t ON mv.TrackId = t.TrackId;
+
+-- Query 6: GROUP BY query - count music videos per album
+SELECT a.Title AS AlbumName,
+       COUNT(mv.TrackId) AS NumberOfVideos
+FROM MusicVideo mv
+JOIN tracks t ON mv.TrackId = t.TrackId
+JOIN albums a ON t.AlbumId = a.AlbumId
+GROUP BY a.AlbumId;
+
+-- Query 7 (Bonus): Customers who purchased longer-than-average tracks (excluding tracks over 15 min)
+WITH avg_len AS (
+  SELECT AVG(Milliseconds) AS avg_ms
+  FROM tracks
+  WHERE Milliseconds <= 15 * 60 * 1000
+)
+SELECT DISTINCT
+  c.CustomerId,
+  c.FirstName,
+  c.LastName,
+  c.Email
+FROM customers c
+JOIN invoices i       ON i.CustomerId = c.CustomerId
+JOIN invoice_items ii ON ii.InvoiceId = i.InvoiceId
+JOIN tracks t         ON t.TrackId = ii.TrackId
+CROSS JOIN avg_len
+WHERE t.Milliseconds > avg_len.avg_ms
+  AND t.Milliseconds <= 15 * 60 * 1000
+ORDER BY c.LastName, c.FirstName;
+
+-- Query 8 (Bonus): Tracks that are not in the top 5 genres by average duration
+WITH Top5Genres AS (
+  SELECT GenreId
+  FROM tracks
+  GROUP BY GenreId
+  ORDER BY AVG(Milliseconds) DESC
+  LIMIT 5
+)
+SELECT t.TrackId,
+       t.Name,
+       g.Name AS Genre,
+       t.Milliseconds
+FROM tracks t
+JOIN genres g ON g.GenreId = t.GenreId
+WHERE t.GenreId NOT IN (SELECT GenreId FROM Top5Genres)
+ORDER BY t.Milliseconds DESC;
